@@ -47,3 +47,10 @@ Composants exposes comme diagnostics ou metriques estimees :
 
 Le code de l'integration est dans `custom_components/fluidra_z250iq`.
 
+## Remerciements
+
+Merci au travail initial realise sur le projet `ha-fluidra-pool`, qui nous a servi de base de recherche et de point de depart technique pour cette integration centree sur la `Z250iQ`.
+
+Mention speciale a son auteur, `@roagert`, pour le travail deja effectue autour de l'API Fluidra.
+
+Depot d'origine : `https://github.com/Roagert/ha-fluidra-pool`
