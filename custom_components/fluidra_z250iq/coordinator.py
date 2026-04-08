@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 from dataclasses import dataclass, replace
@@ -82,6 +83,7 @@ class FluidraZ250IQCoordinator(DataUpdateCoordinator[FluidraDeviceState]):
         self._uiconfig: dict[str, Any] = {}
         self._ws_task: asyncio.Task[None] | None = None
         self._ws_running = False
+        self._delayed_refresh_task: asyncio.Task[None] | None = None
 
     async def async_shutdown(self) -> None:
         """Cancel background tasks."""
@@ -92,6 +94,10 @@ class FluidraZ250IQCoordinator(DataUpdateCoordinator[FluidraDeviceState]):
                 await self._ws_task
             except asyncio.CancelledError:
                 pass
+        if self._delayed_refresh_task and not self._delayed_refresh_task.done():
+            self._delayed_refresh_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._delayed_refresh_task
 
     async def _async_update_data(self) -> FluidraDeviceState:
         """Fetch the latest device state from the cloud API."""
@@ -173,29 +179,47 @@ class FluidraZ250IQCoordinator(DataUpdateCoordinator[FluidraDeviceState]):
             event = json.loads(payload)
         except json.JSONDecodeError:
             return
-
-        if event.get("statusCode") == 200:
+        if self.data is None:
             return
 
-        if event.get("deviceId") != self.device_id:
-            return
-
-        component_id = event.get("componentId")
-        reported_value = event.get("reportedValue")
-        if component_id is None or reported_value is None or self.data is None:
-            return
-
-        try:
-            component_key = int(component_id)
-        except (TypeError, ValueError):
+        component_events = self._extract_component_events(event)
+        if not component_events:
             return
 
         components = dict(self.data.components)
-        component = dict(components.get(component_key, {"id": component_key}))
-        component["reportedValue"] = reported_value
-        if "desiredValue" in event:
-            component["desiredValue"] = event["desiredValue"]
-        components[component_key] = component
+        did_update = False
+        for item in component_events:
+            device_id = item.get("deviceId") or item.get("device_id")
+            if device_id and device_id != self.device_id:
+                continue
+
+            component_id = (
+                item.get("componentId") or item.get("id") or item.get("componentID")
+            )
+            reported_value = (
+                item.get("reportedValue")
+                if "reportedValue" in item
+                else item.get("value", item.get("desiredValue"))
+            )
+            if component_id is None or reported_value is None:
+                continue
+
+            try:
+                component_key = int(component_id)
+            except (TypeError, ValueError):
+                continue
+
+            component = dict(components.get(component_key, {"id": component_key}))
+            component["reportedValue"] = reported_value
+            if "desiredValue" in item:
+                component["desiredValue"] = item["desiredValue"]
+            if "ts" in item:
+                component["ts"] = item["ts"]
+            components[component_key] = component
+            did_update = True
+
+        if not did_update:
+            return
 
         self.async_set_updated_data(
             replace(
@@ -205,6 +229,46 @@ class FluidraZ250IQCoordinator(DataUpdateCoordinator[FluidraDeviceState]):
                 websocket_connected=True,
             )
         )
+
+    def _extract_component_events(self, event: dict[str, Any]) -> list[dict[str, Any]]:
+        """Extract component events from top-level and nested WebSocket payloads."""
+        candidates: list[Any] = [event]
+        body = event.get("body")
+        if isinstance(body, str):
+            with contextlib.suppress(json.JSONDecodeError):
+                candidates.append(json.loads(body))
+        elif isinstance(body, (dict, list)):
+            candidates.append(body)
+
+        extracted: list[dict[str, Any]] = []
+        for candidate in candidates:
+            extracted.extend(self._normalize_component_payload(candidate))
+        return extracted
+
+    def _normalize_component_payload(self, payload: Any) -> list[dict[str, Any]]:
+        """Normalize known WebSocket payload shapes into a flat list of updates."""
+        if isinstance(payload, list):
+            result: list[dict[str, Any]] = []
+            for item in payload:
+                result.extend(self._normalize_component_payload(item))
+            return result
+
+        if not isinstance(payload, dict):
+            return []
+
+        nested_items: list[dict[str, Any]] = []
+        for key in ("records", "components", "data", "items"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                for item in value:
+                    nested_items.extend(self._normalize_component_payload(item))
+            elif isinstance(value, dict):
+                nested_items.extend(self._normalize_component_payload(value))
+
+        if nested_items:
+            return nested_items
+
+        return [payload]
 
     def _set_websocket_connected(self, connected: bool) -> None:
         """Update the connection status in the cached state."""
@@ -270,6 +334,7 @@ class FluidraZ250IQCoordinator(DataUpdateCoordinator[FluidraDeviceState]):
         new_value = response.get("reportedValue", response.get("desiredValue", value))
         self._apply_local_component_update(component_id, new_value)
         self.hass.async_create_task(self.async_request_refresh())
+        self._schedule_delayed_refresh()
 
     def _apply_local_component_update(self, component_id: int, value: Any) -> None:
         """Update the local cache right away after a successful write."""
@@ -295,3 +360,19 @@ class FluidraZ250IQCoordinator(DataUpdateCoordinator[FluidraDeviceState]):
                 last_push=datetime.now(timezone.utc),
             )
         )
+
+    def _schedule_delayed_refresh(self, delay_seconds: int = 4) -> None:
+        """Refresh shortly after a write to catch cloud-applied values."""
+        if self._delayed_refresh_task and not self._delayed_refresh_task.done():
+            self._delayed_refresh_task.cancel()
+        self._delayed_refresh_task = self.hass.async_create_task(
+            self._async_delayed_refresh(delay_seconds)
+        )
+
+    async def _async_delayed_refresh(self, delay_seconds: int) -> None:
+        """Run a delayed refresh after a write."""
+        try:
+            await asyncio.sleep(delay_seconds)
+            await self.async_request_refresh()
+        except asyncio.CancelledError:
+            raise
