@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import voluptuous as vol
@@ -23,6 +24,9 @@ from .const import (
     MAX_SCAN_INTERVAL,
     MIN_SCAN_INTERVAL,
 )
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class FluidraZ250IQConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -52,6 +56,9 @@ class FluidraZ250IQConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except FluidraAuthenticationError:
                 errors["base"] = "invalid_auth"
             except FluidraApiError:
+                errors["base"] = "cannot_connect"
+            except Exception:  # pragma: no cover - HA runtime guardrail
+                _LOGGER.exception("Unexpected error while loading the Fluidra config flow")
                 errors["base"] = "cannot_connect"
             else:
                 if not devices:
@@ -155,4 +162,3 @@ class FluidraZ250IQOptionsFlow(config_entries.OptionsFlow):
                 }
             ),
         )
-

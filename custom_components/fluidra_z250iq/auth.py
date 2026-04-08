@@ -6,9 +6,6 @@ import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-import boto3
-from botocore.exceptions import BotoCoreError, ClientError
-
 from .const import COGNITO_CLIENT_ID, COGNITO_REGION, TOKEN_REFRESH_MARGIN
 
 
@@ -62,8 +59,6 @@ class FluidraAuth:
         loop = asyncio.get_running_loop()
         try:
             auth_result = await loop.run_in_executor(None, self._authenticate_sync)
-        except (BotoCoreError, ClientError) as err:
-            raise FluidraAuthenticationError(str(err)) from err
         except Exception as err:  # pragma: no cover - defensive
             raise FluidraAuthenticationError(str(err)) from err
 
@@ -77,14 +72,24 @@ class FluidraAuth:
 
     def _authenticate_sync(self) -> dict:
         """Perform Cognito authentication synchronously."""
-        client = boto3.client("cognito-idp", region_name=COGNITO_REGION)
-        response = client.initiate_auth(
-            ClientId=COGNITO_CLIENT_ID,
-            AuthFlow="USER_PASSWORD_AUTH",
-            AuthParameters={
-                "USERNAME": self._username,
-                "PASSWORD": self._password,
-            },
-        )
-        return response["AuthenticationResult"]
+        try:
+            import boto3
+            from botocore.exceptions import BotoCoreError, ClientError
+        except ImportError as err:
+            raise FluidraAuthenticationError(
+                "The boto3 dependency is not available yet. Restart Home Assistant and try again."
+            ) from err
 
+        client = boto3.client("cognito-idp", region_name=COGNITO_REGION)
+        try:
+            response = client.initiate_auth(
+                ClientId=COGNITO_CLIENT_ID,
+                AuthFlow="USER_PASSWORD_AUTH",
+                AuthParameters={
+                    "USERNAME": self._username,
+                    "PASSWORD": self._password,
+                },
+            )
+            return response["AuthenticationResult"]
+        except (BotoCoreError, ClientError) as err:
+            raise FluidraAuthenticationError(str(err)) from err
