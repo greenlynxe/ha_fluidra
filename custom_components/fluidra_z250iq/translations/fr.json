@@ -1,0 +1,41 @@
+{
+  "title": "Fluidra Z250iQ",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connexion a Fluidra",
+        "description": "Connectez-vous avec votre compte Fluidra pour detecter une pompe a chaleur Z250iQ.",
+        "data": {
+          "username": "Email",
+          "password": "Mot de passe"
+        }
+      },
+      "select_device": {
+        "title": "Choix de l'appareil",
+        "description": "Choisissez la Z250iQ a importer.",
+        "data": {
+          "device_id": "Pompe a chaleur"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Identifiants Fluidra invalides.",
+      "cannot_connect": "Impossible de joindre l'API Fluidra.",
+      "no_supported_device": "Aucune Z250iQ compatible n'a ete trouvee sur ce compte."
+    },
+    "abort": {
+      "already_configured": "Cette pompe a chaleur est deja configuree."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options",
+        "description": "Ajustez le polling tout en gardant les mises a jour push via WebSocket.",
+        "data": {
+          "scan_interval": "Intervalle de polling (minutes)"
+        }
+      }
+    }
+  }
+}

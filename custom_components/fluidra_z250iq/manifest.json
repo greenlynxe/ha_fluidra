@@ -1,0 +1,13 @@
+{
+  "domain": "fluidra_z250iq",
+  "name": "Fluidra Z250iQ",
+  "config_flow": true,
+  "integration_type": "device",
+  "iot_class": "cloud_push",
+  "version": "0.1.0",
+  "requirements": [
+    "boto3>=1.34.0"
+  ],
+  "codeowners": [],
+  "homeassistant": "2024.8.0"
+}

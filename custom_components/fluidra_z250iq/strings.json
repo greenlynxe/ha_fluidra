@@ -1,0 +1,42 @@
+{
+  "title": "Fluidra Z250iQ",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Fluidra",
+        "description": "Sign in with your Fluidra account to discover a Z250iQ heat pump.",
+        "data": {
+          "username": "Email",
+          "password": "Password"
+        }
+      },
+      "select_device": {
+        "title": "Select device",
+        "description": "Choose the Z250iQ heat pump to import.",
+        "data": {
+          "device_id": "Heat pump"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid Fluidra credentials.",
+      "cannot_connect": "Unable to reach the Fluidra API.",
+      "no_supported_device": "No compatible Z250iQ was found on this account."
+    },
+    "abort": {
+      "already_configured": "This heat pump is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options",
+        "description": "Adjust polling while WebSocket push remains enabled.",
+        "data": {
+          "scan_interval": "Polling interval (minutes)"
+        }
+      }
+    }
+  }
+}
+
