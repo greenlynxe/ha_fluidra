@@ -14,6 +14,8 @@ Ce depot repart de zero avec un scope volontairement serre :
 
 ## Etat actuel
 
+La version courante force aussi un refresh complet de securite toutes les 2 minutes, meme si le WebSocket est deja actif.
+
 La premiere version expose :
 
 - un `climate` pour piloter la PAC

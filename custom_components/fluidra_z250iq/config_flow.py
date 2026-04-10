@@ -143,11 +143,12 @@ class FluidraZ250IQOptionsFlow(config_entries.OptionsFlow):
     ) -> FlowResult:
         """Configure poll interval."""
         if user_input is not None:
+            user_input[CONF_SCAN_INTERVAL] = int(
+                MIN_SCAN_INTERVAL.total_seconds() / 60
+            )
             return self.async_create_entry(title="", data=user_input)
 
-        current_interval = self.config_entry.options.get(
-            CONF_SCAN_INTERVAL, self.config_entry.data.get(CONF_SCAN_INTERVAL, 5)
-        )
+        current_interval = int(MIN_SCAN_INTERVAL.total_seconds() / 60)
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(

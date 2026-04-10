@@ -12,9 +12,11 @@ CONF_DEVICE_ID = "device_id"
 CONF_DEVICE_NAME = "device_name"
 CONF_SCAN_INTERVAL = "scan_interval"
 
-DEFAULT_SCAN_INTERVAL = timedelta(minutes=5)
+# The fallback poll is intentionally fixed at 2 minutes so every entity gets
+# refreshed at least that often, even if a WebSocket event is missed.
+DEFAULT_SCAN_INTERVAL = timedelta(minutes=2)
 MIN_SCAN_INTERVAL = timedelta(minutes=2)
-MAX_SCAN_INTERVAL = timedelta(minutes=15)
+MAX_SCAN_INTERVAL = timedelta(minutes=2)
 TOKEN_REFRESH_MARGIN = timedelta(minutes=1)
 
 API_BASE_URL = "https://api.fluidra-emea.com"

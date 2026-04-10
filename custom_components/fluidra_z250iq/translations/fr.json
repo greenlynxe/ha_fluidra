@@ -31,7 +31,7 @@
     "step": {
       "init": {
         "title": "Options",
-        "description": "Ajustez le polling tout en gardant les mises a jour push via WebSocket.",
+        "description": "Le polling est force toutes les 2 minutes tout en gardant les mises a jour push via WebSocket.",
         "data": {
           "scan_interval": "Intervalle de polling (minutes)"
         }

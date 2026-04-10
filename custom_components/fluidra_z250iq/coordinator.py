@@ -62,7 +62,10 @@ class FluidraZ250IQCoordinator(DataUpdateCoordinator[FluidraDeviceState]):
         api: FluidraApiClient,
     ) -> None:
         scan_interval = entry.options.get(
-            CONF_SCAN_INTERVAL, entry.data.get(CONF_SCAN_INTERVAL, 5)
+            CONF_SCAN_INTERVAL,
+            entry.data.get(
+                CONF_SCAN_INTERVAL, int(DEFAULT_SCAN_INTERVAL.total_seconds() / 60)
+            ),
         )
         update_interval = DEFAULT_SCAN_INTERVAL
         if isinstance(scan_interval, int):
