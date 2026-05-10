@@ -143,22 +143,29 @@ class FluidraZ250IQOptionsFlow(config_entries.OptionsFlow):
     ) -> FlowResult:
         """Configure poll interval."""
         if user_input is not None:
-            user_input[CONF_SCAN_INTERVAL] = int(
-                MIN_SCAN_INTERVAL.total_seconds() / 60
+            return self.async_create_entry(
+                title="", data={CONF_SCAN_INTERVAL: user_input[CONF_SCAN_INTERVAL]}
             )
-            return self.async_create_entry(title="", data=user_input)
 
-        current_interval = int(MIN_SCAN_INTERVAL.total_seconds() / 60)
+        default_interval = int(DEFAULT_SCAN_INTERVAL.total_seconds() / 60)
+        min_interval = int(MIN_SCAN_INTERVAL.total_seconds() / 60)
+        max_interval = int(MAX_SCAN_INTERVAL.total_seconds() / 60)
+        current_interval = self.config_entry.options.get(
+            CONF_SCAN_INTERVAL,
+            self.config_entry.data.get(CONF_SCAN_INTERVAL, default_interval),
+        )
+        if not isinstance(current_interval, int):
+            current_interval = default_interval
+        elif current_interval < min_interval:
+            current_interval = default_interval
+        current_interval = min(max_interval, max(min_interval, current_interval))
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_SCAN_INTERVAL, default=current_interval): vol.All(
                         vol.Coerce(int),
-                        vol.Range(
-                            min=int(MIN_SCAN_INTERVAL.total_seconds() / 60),
-                            max=int(MAX_SCAN_INTERVAL.total_seconds() / 60),
-                        ),
+                        vol.Range(min=min_interval, max=max_interval),
                     )
                 }
             ),

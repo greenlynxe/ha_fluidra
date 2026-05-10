@@ -32,7 +32,11 @@ from .const import (
     DOMAIN,
     MAX_SCAN_INTERVAL,
     MIN_SCAN_INTERVAL,
-    WS_RECONNECT_DELAY,
+    POST_WRITE_REFRESH_DELAY,
+    WS_RECONNECT_BACKOFF_FACTOR,
+    WS_RECONNECT_INITIAL_DELAY,
+    WS_RECONNECT_MAX_DELAY,
+    WS_RECONNECT_STABLE_SECONDS,
     WS_URL,
 )
 
@@ -69,7 +73,9 @@ class FluidraZ250IQCoordinator(DataUpdateCoordinator[FluidraDeviceState]):
         )
         update_interval = DEFAULT_SCAN_INTERVAL
         if isinstance(scan_interval, int):
-            update_interval = timedelta(minutes=scan_interval)
+            configured_interval = timedelta(minutes=scan_interval)
+            if configured_interval >= MIN_SCAN_INTERVAL:
+                update_interval = configured_interval
         update_interval = min(MAX_SCAN_INTERVAL, max(MIN_SCAN_INTERVAL, update_interval))
 
         super().__init__(
@@ -146,9 +152,11 @@ class FluidraZ250IQCoordinator(DataUpdateCoordinator[FluidraDeviceState]):
 
     async def _websocket_loop(self) -> None:
         """Subscribe to push updates for the configured device."""
+        reconnect_delay = WS_RECONNECT_INITIAL_DELAY
         while self._ws_running:
+            connected_at: float | None = None
             try:
-                token = await self.api.async_get_access_token(force=True)
+                token = await self.api.async_get_access_token()
                 ws_url = f"{WS_URL}?token={token}"
                 async with self.api._session.ws_connect(ws_url, heartbeat=30) as ws:
                     await ws.send_json(
@@ -158,6 +166,7 @@ class FluidraZ250IQCoordinator(DataUpdateCoordinator[FluidraDeviceState]):
                             "deviceId": self.device_id,
                         }
                     )
+                    connected_at = asyncio.get_running_loop().time()
                     self._set_websocket_connected(True)
                     async for message in ws:
                         if message.type == WSMsgType.TEXT:
@@ -171,10 +180,23 @@ class FluidraZ250IQCoordinator(DataUpdateCoordinator[FluidraDeviceState]):
             except Exception as err:  # pragma: no cover - network/runtime behaviour
                 _LOGGER.debug("Fluidra WebSocket disconnected: %s", err)
             finally:
+                if (
+                    connected_at is not None
+                    and asyncio.get_running_loop().time() - connected_at
+                    >= WS_RECONNECT_STABLE_SECONDS
+                ):
+                    reconnect_delay = WS_RECONNECT_INITIAL_DELAY
                 self._set_websocket_connected(False)
 
             if self._ws_running:
-                await asyncio.sleep(WS_RECONNECT_DELAY)
+                _LOGGER.debug(
+                    "Fluidra WebSocket reconnect in %s seconds", reconnect_delay
+                )
+                await asyncio.sleep(reconnect_delay)
+                reconnect_delay = min(
+                    WS_RECONNECT_MAX_DELAY,
+                    reconnect_delay * WS_RECONNECT_BACKOFF_FACTOR,
+                )
 
     async def _handle_websocket_message(self, payload: str) -> None:
         """Merge a push event into the current component cache."""
@@ -336,7 +358,6 @@ class FluidraZ250IQCoordinator(DataUpdateCoordinator[FluidraDeviceState]):
         )
         new_value = response.get("reportedValue", response.get("desiredValue", value))
         self._apply_local_component_update(component_id, new_value)
-        self.hass.async_create_task(self.async_request_refresh())
         self._schedule_delayed_refresh()
 
     def _apply_local_component_update(self, component_id: int, value: Any) -> None:
@@ -364,7 +385,9 @@ class FluidraZ250IQCoordinator(DataUpdateCoordinator[FluidraDeviceState]):
             )
         )
 
-    def _schedule_delayed_refresh(self, delay_seconds: int = 4) -> None:
+    def _schedule_delayed_refresh(
+        self, delay_seconds: int = POST_WRITE_REFRESH_DELAY
+    ) -> None:
         """Refresh shortly after a write to catch cloud-applied values."""
         if self._delayed_refresh_task and not self._delayed_refresh_task.done():
             self._delayed_refresh_task.cancel()

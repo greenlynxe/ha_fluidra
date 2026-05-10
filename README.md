@@ -14,7 +14,7 @@ Ce depot repart de zero avec un scope volontairement serre :
 
 ## Etat actuel
 
-La version courante force aussi un refresh complet de securite toutes les 2 minutes, meme si le WebSocket est deja actif.
+La version courante privilegie les mises a jour WebSocket et limite le polling REST a un filet de securite plus lent, configurable de 5 a 120 minutes avec une valeur par defaut a 15 minutes.
 
 La premiere version expose :
 

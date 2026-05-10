@@ -31,7 +31,7 @@
     "step": {
       "init": {
         "title": "Options",
-        "description": "Le polling est force toutes les 2 minutes tout en gardant les mises a jour push via WebSocket.",
+        "description": "Les mises a jour WebSocket restent actives. Le polling REST sert seulement de secours prudent.",
         "data": {
           "scan_interval": "Intervalle de polling (minutes)"
         }

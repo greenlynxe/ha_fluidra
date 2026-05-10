@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Mapping
+from time import monotonic
 from typing import Any
 
 from aiohttp import ClientError, ClientResponseError, ClientSession
 
 from .auth import FluidraAuth, FluidraAuthenticationError
 from .const import (
+    API_REQUEST_MIN_INTERVAL,
     API_ENDPOINT_DEVICE_COMPONENTS,
     API_ENDPOINT_DEVICE_DETAIL,
     API_ENDPOINT_DEVICE_UICONFIG,
@@ -29,6 +32,8 @@ class FluidraApiClient:
     def __init__(self, session: ClientSession, username: str, password: str) -> None:
         self._session = session
         self._auth = FluidraAuth(username, password)
+        self._request_lock = asyncio.Lock()
+        self._last_request_monotonic = 0.0
 
     async def async_get_access_token(self, *, force: bool = False) -> str:
         """Return a valid access token."""
@@ -112,6 +117,26 @@ class FluidraApiClient:
         json_body: dict[str, Any] | None = None,
     ) -> Any:
         """Perform an authenticated JSON request."""
+        async with self._request_lock:
+            await self._async_wait_for_rate_limit()
+            return await self._async_request_json(method, url, json_body=json_body)
+
+    async def _async_wait_for_rate_limit(self) -> None:
+        """Space out cloud API calls to avoid short bursts."""
+        elapsed = monotonic() - self._last_request_monotonic
+        delay = API_REQUEST_MIN_INTERVAL - elapsed
+        if delay > 0:
+            await asyncio.sleep(delay)
+        self._last_request_monotonic = monotonic()
+
+    async def _async_request_json(
+        self,
+        method: str,
+        url: str,
+        *,
+        json_body: dict[str, Any] | None = None,
+    ) -> Any:
+        """Perform one authenticated JSON request."""
         try:
             headers = await self._auth.async_get_headers()
             async with self._session.request(

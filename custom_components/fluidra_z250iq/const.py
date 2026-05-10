@@ -12,12 +12,14 @@ CONF_DEVICE_ID = "device_id"
 CONF_DEVICE_NAME = "device_name"
 CONF_SCAN_INTERVAL = "scan_interval"
 
-# The fallback poll is intentionally fixed at 2 minutes so every entity gets
-# refreshed at least that often, even if a WebSocket event is missed.
-DEFAULT_SCAN_INTERVAL = timedelta(minutes=2)
-MIN_SCAN_INTERVAL = timedelta(minutes=2)
-MAX_SCAN_INTERVAL = timedelta(minutes=2)
+# The integration mostly relies on cloud push. Keep the REST fallback slow so
+# fragile Fluidra devices are not hammered by frequent full refreshes.
+DEFAULT_SCAN_INTERVAL = timedelta(minutes=15)
+MIN_SCAN_INTERVAL = timedelta(minutes=5)
+MAX_SCAN_INTERVAL = timedelta(minutes=120)
 TOKEN_REFRESH_MARGIN = timedelta(minutes=1)
+API_REQUEST_MIN_INTERVAL = 2.0
+POST_WRITE_REFRESH_DELAY = 30
 
 API_BASE_URL = "https://api.fluidra-emea.com"
 API_ENDPOINT_DEVICES = f"{API_BASE_URL}/generic/devices?deviceType=connected"
@@ -36,7 +38,10 @@ API_ENDPOINT_SET_COMPONENT = (
 )
 
 WS_URL = "wss://ws.fluidra-emea.com"
-WS_RECONNECT_DELAY = 5
+WS_RECONNECT_INITIAL_DELAY = 30
+WS_RECONNECT_MAX_DELAY = 15 * 60
+WS_RECONNECT_BACKOFF_FACTOR = 2
+WS_RECONNECT_STABLE_SECONDS = 5 * 60
 
 COGNITO_REGION = "eu-west-1"
 COGNITO_CLIENT_ID = "g3njunelkcbtefosqm9bdhhq1"

@@ -31,7 +31,7 @@
     "step": {
       "init": {
         "title": "Options",
-        "description": "Polling is enforced every 2 minutes while WebSocket push remains enabled.",
+        "description": "WebSocket push stays enabled. REST polling is only a conservative fallback.",
         "data": {
           "scan_interval": "Polling interval (minutes)"
         }
