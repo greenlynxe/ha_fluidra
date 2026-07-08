@@ -11,7 +11,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
     COMPONENT_PUMP_AUTO_MODE,
-    COMPONENT_PUMP_POWER,
+    COMPONENT_PUMP_ON_OFF,
 )
 from .coordinator import FluidraPoolCoordinator
 from .entity import FluidraPoolEntity, coordinators_from_entry
@@ -29,7 +29,7 @@ PUMP_SWITCH_DESCRIPTIONS: tuple[FluidraSwitchDescription, ...] = (
     FluidraSwitchDescription(
         key="pump_power",
         name="Pump",
-        component_id=COMPONENT_PUMP_POWER,
+        component_id=COMPONENT_PUMP_ON_OFF,
         setter_name="async_set_pump_power",
     ),
     FluidraSwitchDescription(

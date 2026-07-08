@@ -15,6 +15,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     EntityCategory,
     PERCENTAGE,
+    SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
     UnitOfElectricCurrent,
     UnitOfElectricPotential,
     UnitOfPower,
@@ -44,12 +45,12 @@ from .const import (
     COMPONENT_MACHINE_METRIC_76,
     COMPONENT_MACHINE_POWER,
     COMPONENT_MODE,
-    COMPONENT_PUMP_AUTO_MODE,
-    COMPONENT_PUMP_NETWORK,
-    COMPONENT_PUMP_POWER,
-    COMPONENT_PUMP_SCHEDULE,
-    COMPONENT_PUMP_SPEED,
+    COMPONENT_PUMP_ACTIVE_FUNCTION,
+    COMPONENT_PUMP_CONTROL_MODE,
+    COMPONENT_PUMP_RSSI,
     COMPONENT_PUMP_SPEED_PERCENT,
+    COMPONENT_PUMP_SPEED_SETPOINT,
+    COMPONENT_PUMP_STATUS,
     COMPONENT_RUNNING_HOURS,
     COMPONENT_SUPPLY_VOLTAGE,
     COMPONENT_SETPOINT_MAX,
@@ -306,11 +307,10 @@ async def async_setup_entry(
                 ]
             )
         elif coordinator.is_pump:
-            has_speed_percent = coordinator.has_component(COMPONENT_PUMP_SPEED_PERCENT)
-            has_speed_level = coordinator.has_component(COMPONENT_PUMP_SPEED)
-            if has_speed_percent or has_speed_level:
+            has_setpoint = coordinator.has_component(COMPONENT_PUMP_SPEED_SETPOINT)
+            has_legacy_percent = coordinator.has_component(COMPONENT_PUMP_SPEED_PERCENT)
+            if has_setpoint or has_legacy_percent:
                 entities.append(FluidraPumpSpeedPercentSensor(coordinator))
-            if has_speed_level:
                 entities.append(FluidraPumpSpeedLevelSensor(coordinator))
             entities.extend(
                 FluidraPumpComponentStatusSensor(coordinator, description)
@@ -324,27 +324,29 @@ async def async_setup_entry(
 
 PUMP_STATUS_SENSOR_DESCRIPTIONS: tuple[FluidraSensorDescription, ...] = (
     FluidraSensorDescription(
-        key="pump_power_value",
-        name="Pump power value",
-        component_id=COMPONENT_PUMP_POWER,
+        key="pump_status",
+        name="Status",
+        component_id=COMPONENT_PUMP_STATUS,
+    ),
+    FluidraSensorDescription(
+        key="pump_control_mode",
+        name="Control mode",
+        component_id=COMPONENT_PUMP_CONTROL_MODE,
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     FluidraSensorDescription(
-        key="pump_auto_mode_value",
-        name="Auto mode value",
-        component_id=COMPONENT_PUMP_AUTO_MODE,
+        key="pump_active_function",
+        name="Active function",
+        component_id=COMPONENT_PUMP_ACTIVE_FUNCTION,
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     FluidraSensorDescription(
-        key="pump_schedule_value",
-        name="Schedule value",
-        component_id=COMPONENT_PUMP_SCHEDULE,
-        entity_category=EntityCategory.DIAGNOSTIC,
-    ),
-    FluidraSensorDescription(
-        key="pump_network_value",
-        name="Network value",
-        component_id=COMPONENT_PUMP_NETWORK,
+        key="pump_wifi_signal",
+        name="WiFi signal",
+        component_id=COMPONENT_PUMP_RSSI,
+        native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+        device_class=SensorDeviceClass.SIGNAL_STRENGTH,
+        state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
 )

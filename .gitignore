@@ -10,3 +10,7 @@ deps/
 venv/
 .venv/
 
+# Local API exploration / analysis scratch — not for publication
+tools/
+outputs/
+

@@ -22,10 +22,14 @@ from .const import (
     COMPONENT_EFFECTIVE_MODE,
     COMPONENT_MODE,
     COMPONENT_PUMP_AUTO_MODE,
+    COMPONENT_PUMP_ON_OFF,
     COMPONENT_PUMP_POWER,
     COMPONENT_PUMP_SPEED,
     COMPONENT_PUMP_SPEED_PERCENT,
+    COMPONENT_PUMP_SPEED_SETPOINT,
+    COMPONENT_PUMP_STATUS,
     COMPONENT_POWER,
+    PUMP_STATUS_RUNNING,
     COMPONENT_SETPOINT,
     COMPONENT_SETPOINT_MAX,
     COMPONENT_SETPOINT_MIN,
@@ -403,24 +407,48 @@ class FluidraPoolCoordinator(DataUpdateCoordinator[FluidraDeviceState]):
         rounded = round(temperature_c)
         await self._async_set_component(COMPONENT_SETPOINT, int(rounded * 10))
 
+    def get_pump_running(self) -> bool | None:
+        """Return whether the pump is currently running."""
+        status = self.get_component_value(COMPONENT_PUMP_STATUS)
+        if isinstance(status, str):
+            return status.strip().upper() == PUMP_STATUS_RUNNING
+        on_off = self.get_component_value(COMPONENT_PUMP_ON_OFF)
+        if isinstance(on_off, bool):
+            return on_off
+        if isinstance(on_off, int):
+            return on_off != 0
+        return None
+
+    def get_pump_status(self) -> str | None:
+        """Return the raw pump status text (e.g. RUNNING)."""
+        status = self.get_component_value(COMPONENT_PUMP_STATUS)
+        return status if isinstance(status, str) else None
+
     def get_pump_speed_level(self) -> int | None:
-        """Return the pump speed level when available."""
-        raw_level = self.get_component_value(COMPONENT_PUMP_SPEED)
-        return raw_level if isinstance(raw_level, int) else None
+        """Return the pump speed level derived from the active setpoint."""
+        percent = self.get_pump_speed_percent()
+        if percent <= 0:
+            return None
+        # Map the reported setpoint to the nearest known speed preset.
+        return min(
+            PUMP_SPEED_LEVEL_TO_PERCENT,
+            key=lambda level: abs(PUMP_SPEED_LEVEL_TO_PERCENT[level] - percent),
+        )
 
     def get_pump_speed_percent(self) -> int:
-        """Return the pump speed percent, deriving it from level if needed."""
-        if self.get_component_value(COMPONENT_PUMP_POWER, 0) == 0:
+        """Return the pump speed setpoint percent from the live component."""
+        if self.get_pump_running() is False:
             return 0
 
-        raw_percent = self.get_component_value(COMPONENT_PUMP_SPEED_PERCENT)
+        raw_percent = self.get_component_value(COMPONENT_PUMP_SPEED_SETPOINT)
         if isinstance(raw_percent, (int, float)):
             return int(raw_percent)
 
-        speed_level = self.get_pump_speed_level()
-        if speed_level is None:
-            return 0
-        return PUMP_SPEED_LEVEL_TO_PERCENT.get(speed_level, 0)
+        # Legacy fallback for hardware that exposes a discrete speed percent.
+        legacy_percent = self.get_component_value(COMPONENT_PUMP_SPEED_PERCENT)
+        if isinstance(legacy_percent, (int, float)):
+            return int(legacy_percent)
+        return 0
 
     async def async_set_pump_power(self, enabled: bool) -> None:
         """Turn the pump on or off."""

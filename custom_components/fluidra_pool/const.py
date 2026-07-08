@@ -88,10 +88,25 @@ COMPONENT_PUMP_SPEED_PERCENT = 15
 COMPONENT_PUMP_SCHEDULE = 20
 COMPONENT_PUMP_NETWORK = 21
 
+# Victoria Smart Connect VS reported components, decoded from the live cloud API.
+# This pump exposes no uiconfig, so its state is only readable through the
+# component list. The earlier COMPONENT_PUMP_SPEED*/POWER ids above pointed at
+# static fields (e.g. id 11 is the SKU string, id 15 is always 0), which is why
+# Home Assistant reported meaningless pump values.
+COMPONENT_PUMP_RSSI = 7
+COMPONENT_PUMP_ON_OFF = 13
+COMPONENT_PUMP_STATUS = 14
+COMPONENT_PUMP_ACTIVE_FUNCTION = 16
+COMPONENT_PUMP_SPEED_SETPOINT = 17
+COMPONENT_PUMP_CONTROL_MODE = 18
+
+PUMP_STATUS_RUNNING = "RUNNING"
+
+# Speed presets reported by the pump (name -> setpoint %): LOW=50, MID=75, HIGH=80.
 PUMP_SPEED_LEVEL_TO_PERCENT = {
-    0: 45,
-    1: 65,
-    2: 100,
+    0: 50,
+    1: 75,
+    2: 80,
 }
 PUMP_SPEED_OPTIONS = ("Low", "Medium", "High")
 PUMP_SPEED_OPTION_TO_LEVEL = dict(zip(PUMP_SPEED_OPTIONS, (0, 1, 2), strict=True))

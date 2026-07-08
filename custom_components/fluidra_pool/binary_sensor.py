@@ -49,12 +49,13 @@ async def async_setup_entry(
     """Set up Fluidra binary sensors."""
     entities: list[BinarySensorEntity] = []
     for coordinator in coordinators_from_entry(hass, entry):
-        if not coordinator.is_heat_pump:
-            continue
-        entities.extend(
-            FluidraComponentBinarySensor(coordinator, description)
-            for description in BINARY_SENSOR_DESCRIPTIONS
-        )
+        if coordinator.is_heat_pump:
+            entities.extend(
+                FluidraComponentBinarySensor(coordinator, description)
+                for description in BINARY_SENSOR_DESCRIPTIONS
+            )
+        elif coordinator.is_pump:
+            entities.append(FluidraPumpRunningBinarySensor(coordinator))
     async_add_entities(entities)
 
 
@@ -79,3 +80,24 @@ class FluidraComponentBinarySensor(FluidraPoolEntity, BinarySensorEntity):
         if raw_value is None:
             return None
         return bool(raw_value)
+
+
+class FluidraPumpRunningBinarySensor(FluidraPoolEntity, BinarySensorEntity):
+    """Running state for a filtration pump, derived from its status text."""
+
+    _attr_name = "Running"
+    _attr_device_class = BinarySensorDeviceClass.RUNNING
+
+    def __init__(self, coordinator: FluidraPoolCoordinator) -> None:
+        super().__init__(coordinator, "pump_running")
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return whether the pump is running."""
+        return self.coordinator.get_pump_running()
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str] | None:
+        """Expose the raw status text reported by the pump."""
+        status = self.coordinator.get_pump_status()
+        return {"status": status} if status is not None else None
