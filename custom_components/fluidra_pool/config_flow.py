@@ -11,12 +11,9 @@ from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .api import FluidraApiClient, FluidraApiError, device_display_name
+from .api import FluidraApiClient, FluidraApiError
 from .auth import FluidraAuthenticationError
 from .const import (
-    CONF_DEVICE_ID,
-    CONF_DEVICE_NAME,
-    CONF_DEVICE_PROFILE,
     CONF_PASSWORD,
     CONF_SCAN_INTERVAL,
     CONF_USERNAME,
@@ -25,7 +22,6 @@ from .const import (
     MAX_SCAN_INTERVAL,
     MIN_SCAN_INTERVAL,
 )
-from .device_profile import identify_device_profile
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -35,10 +31,6 @@ class FluidraPoolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle configuration for supported Fluidra devices."""
 
     VERSION = 1
-
-    def __init__(self) -> None:
-        self._user_input: dict[str, Any] | None = None
-        self._devices: list[dict[str, Any]] = []
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -65,12 +57,8 @@ class FluidraPoolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             else:
                 if not devices:
                     errors["base"] = "no_supported_device"
-                elif len(devices) == 1:
-                    return await self._async_create_entry(user_input, devices[0])
                 else:
-                    self._user_input = user_input
-                    self._devices = devices
-                    return await self.async_step_select_device()
+                    return await self._async_create_entry(user_input, len(devices))
 
         return self.async_show_form(
             step_id="user",
@@ -83,44 +71,29 @@ class FluidraPoolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_select_device(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Select a device when multiple supported devices are found."""
-        if self._user_input is None:
-            return await self.async_step_user()
-
-        if user_input is not None:
-            selected_id = user_input[CONF_DEVICE_ID]
-            selected = next(
-                device for device in self._devices if str(device.get("id")) == selected_id
-            )
-            return await self._async_create_entry(self._user_input, selected)
-
-        options = {str(device["id"]): _device_option_label(device) for device in self._devices}
-        return self.async_show_form(
-            step_id="select_device",
-            data_schema=vol.Schema(
-                {vol.Required(CONF_DEVICE_ID): vol.In(options)}
-            ),
-        )
-
     async def _async_create_entry(
-        self, credentials: dict[str, Any], device: dict[str, Any]
+        self, credentials: dict[str, Any], device_count: int
     ) -> FlowResult:
-        """Create the config entry for the selected device."""
-        device_id = str(device["id"])
-        profile = identify_device_profile(device)
-        await self.async_set_unique_id(device_id)
+        """Create the config entry for the Fluidra account."""
+        username = str(credentials[CONF_USERNAME]).strip()
+        normalized_username = username.lower()
+        for entry in self._async_current_entries():
+            configured_username = str(entry.data.get(CONF_USERNAME, "")).strip().lower()
+            if configured_username == normalized_username:
+                return self.async_abort(reason="already_configured")
+
+        await self.async_set_unique_id(normalized_username)
         self._abort_if_unique_id_configured()
+
+        title = "Fluidra Pool"
+        if device_count > 1:
+            title = f"{title} ({device_count} appareils)"
+
         return self.async_create_entry(
-            title=_device_option_label(device),
+            title=title,
             data={
-                CONF_USERNAME: credentials[CONF_USERNAME],
+                CONF_USERNAME: username,
                 CONF_PASSWORD: credentials[CONF_PASSWORD],
-                CONF_DEVICE_ID: device_id,
-                CONF_DEVICE_NAME: device_display_name(device),
-                CONF_DEVICE_PROFILE: profile.key if profile else None,
                 CONF_SCAN_INTERVAL: int(DEFAULT_SCAN_INTERVAL.total_seconds() / 60),
             },
         )
@@ -172,12 +145,3 @@ class FluidraPoolOptionsFlow(config_entries.OptionsFlow):
                 }
             ),
         )
-
-
-def _device_option_label(device: dict[str, Any]) -> str:
-    """Return a readable selector label with the detected profile."""
-    name = device_display_name(device)
-    profile = identify_device_profile(device)
-    if profile is None:
-        return name
-    return f"{name} ({profile.model_name})"

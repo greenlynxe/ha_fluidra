@@ -15,7 +15,6 @@ from .const import (
     COMPONENT_SETPOINT,
     COMPONENT_WATER_TEMP,
     COOLING_MODE_VALUES,
-    DOMAIN,
     HEATING_MODE_VALUES,
     MODE_LABELS,
     MODE_SMART_AUTO,
@@ -24,7 +23,7 @@ from .const import (
     PRESET_TO_MODE,
 )
 from .coordinator import FluidraPoolCoordinator
-from .entity import FluidraPoolEntity
+from .entity import FluidraPoolEntity, coordinators_from_entry
 
 
 async def async_setup_entry(
@@ -33,12 +32,11 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Fluidra climate entities."""
-    coordinator: FluidraPoolCoordinator = hass.data[DOMAIN][entry.entry_id][
-        "coordinator"
-    ]
-    if not coordinator.is_heat_pump:
-        return
-    async_add_entities([FluidraHeatPumpClimate(coordinator)])
+    async_add_entities(
+        FluidraHeatPumpClimate(coordinator)
+        for coordinator in coordinators_from_entry(hass, entry)
+        if coordinator.is_heat_pump
+    )
 
 
 class FluidraHeatPumpClimate(FluidraPoolEntity, ClimateEntity):

@@ -13,6 +13,8 @@ CONF_DEVICE_NAME = "device_name"
 CONF_DEVICE_PROFILE = "device_profile"
 CONF_SCAN_INTERVAL = "scan_interval"
 
+DATA_COORDINATORS = "coordinators"
+
 # The integration mostly relies on cloud push. Keep the REST fallback slow so
 # fragile Fluidra devices are not hammered by frequent full refreshes.
 DEFAULT_SCAN_INTERVAL = timedelta(minutes=15)

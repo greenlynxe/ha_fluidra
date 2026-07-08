@@ -29,9 +29,6 @@ from .const import (
     COMPONENT_SETPOINT,
     COMPONENT_SETPOINT_MAX,
     COMPONENT_SETPOINT_MIN,
-    CONF_DEVICE_ID,
-    CONF_DEVICE_NAME,
-    CONF_DEVICE_PROFILE,
     CONF_SCAN_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
@@ -50,7 +47,6 @@ from .device_profile import (
     DEVICE_TYPE_PUMP,
     FluidraDeviceProfile,
     identify_device_profile,
-    profile_from_key,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -78,7 +74,20 @@ class FluidraPoolCoordinator(DataUpdateCoordinator[FluidraDeviceState]):
         hass: HomeAssistant,
         entry: ConfigEntry,
         api: FluidraApiClient,
+        device: dict[str, Any],
+        profile: FluidraDeviceProfile | None,
     ) -> None:
+        self.entry = entry
+        self.api = api
+        self.device_id = str(device["id"])
+        self.device_name = device_display_name(device)
+        self._stored_profile = profile
+        self._discovered_device = dict(device)
+        self._uiconfig: dict[str, Any] = {}
+        self._ws_task: asyncio.Task[None] | None = None
+        self._ws_running = False
+        self._delayed_refresh_task: asyncio.Task[None] | None = None
+
         scan_interval = entry.options.get(
             CONF_SCAN_INTERVAL,
             entry.data.get(
@@ -95,19 +104,9 @@ class FluidraPoolCoordinator(DataUpdateCoordinator[FluidraDeviceState]):
         super().__init__(
             hass,
             _LOGGER,
-            name=DOMAIN,
+            name=f"{DOMAIN}_{self.device_id}",
             update_interval=update_interval,
         )
-
-        self.entry = entry
-        self.api = api
-        self.device_id = entry.data[CONF_DEVICE_ID]
-        self.device_name = entry.data.get(CONF_DEVICE_NAME, self.device_id)
-        self._stored_profile = profile_from_key(entry.data.get(CONF_DEVICE_PROFILE))
-        self._uiconfig: dict[str, Any] = {}
-        self._ws_task: asyncio.Task[None] | None = None
-        self._ws_running = False
-        self._delayed_refresh_task: asyncio.Task[None] | None = None
 
     async def async_shutdown(self) -> None:
         """Cancel background tasks."""
@@ -135,11 +134,13 @@ class FluidraPoolCoordinator(DataUpdateCoordinator[FluidraDeviceState]):
             if not self._uiconfig:
                 self._uiconfig = await self.api.async_get_device_uiconfig(self.device_id)
 
+            info = detail.get("info")
+            if not isinstance(info, dict):
+                info = {}
             device = {
                 "id": detail.get("id", self.device_id),
                 "name": device_display_name(detail),
-                "model": detail.get("info", {}).get("name")
-                or detail.get("info", {}).get("family"),
+                "model": info.get("name") or info.get("family"),
                 "serial_number": detail.get("sn") or detail.get("serialNumber"),
                 "firmware": detail.get("vr") or detail.get("currentFirmwareVersion"),
                 "sku": detail.get("sku"),

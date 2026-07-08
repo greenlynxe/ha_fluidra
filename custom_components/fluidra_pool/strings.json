@@ -4,17 +4,10 @@
     "step": {
       "user": {
         "title": "Connect to Fluidra",
-        "description": "Sign in with your Fluidra account to discover supported pool equipment.",
+        "description": "Sign in with your Fluidra account. All supported pool equipment on the account will be added.",
         "data": {
           "username": "Email",
           "password": "Password"
-        }
-      },
-      "select_device": {
-        "title": "Select device",
-        "description": "Choose the Fluidra device to import.",
-        "data": {
-          "device_id": "Device"
         }
       }
     },
@@ -24,7 +17,7 @@
       "no_supported_device": "No supported Fluidra device was found on this account."
     },
     "abort": {
-      "already_configured": "This Fluidra device is already configured."
+      "already_configured": "This Fluidra account is already configured."
     }
   },
   "options": {

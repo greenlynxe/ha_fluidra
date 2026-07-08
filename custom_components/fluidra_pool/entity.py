@@ -4,11 +4,20 @@ from __future__ import annotations
 
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import DATA_COORDINATORS, DOMAIN
 from .coordinator import FluidraPoolCoordinator
+
+
+def coordinators_from_entry(
+    hass: HomeAssistant, entry: ConfigEntry
+) -> list[FluidraPoolCoordinator]:
+    """Return all coordinators attached to one config entry."""
+    return list(hass.data[DOMAIN][entry.entry_id][DATA_COORDINATORS].values())
 
 
 class FluidraPoolEntity(CoordinatorEntity[FluidraPoolCoordinator]):

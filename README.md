@@ -7,6 +7,8 @@ Integration Home Assistant pour equipements piscine Fluidra connectes via le clo
 Ce depot garde une architecture volontairement lisible et prudente :
 
 - domaine Home Assistant : `fluidra_pool`
+- une seule entree d'integration par compte Fluidra
+- decouverte de tous les appareils pris en charge du compte
 - API cloud Fluidra uniquement
 - mises a jour temps reel via WebSocket cloud
 - polling REST lent en filet de securite

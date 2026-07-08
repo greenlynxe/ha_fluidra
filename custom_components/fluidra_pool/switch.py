@@ -12,10 +12,9 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import (
     COMPONENT_PUMP_AUTO_MODE,
     COMPONENT_PUMP_POWER,
-    DOMAIN,
 )
 from .coordinator import FluidraPoolCoordinator
-from .entity import FluidraPoolEntity
+from .entity import FluidraPoolEntity, coordinators_from_entry
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -48,17 +47,16 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Fluidra switch entities."""
-    coordinator: FluidraPoolCoordinator = hass.data[DOMAIN][entry.entry_id][
-        "coordinator"
-    ]
-    if not coordinator.is_pump:
-        return
-
-    async_add_entities(
-        FluidraComponentSwitch(coordinator, description)
-        for description in PUMP_SWITCH_DESCRIPTIONS
-        if coordinator.has_component(description.component_id)
-    )
+    entities: list[SwitchEntity] = []
+    for coordinator in coordinators_from_entry(hass, entry):
+        if not coordinator.is_pump:
+            continue
+        entities.extend(
+            FluidraComponentSwitch(coordinator, description)
+            for description in PUMP_SWITCH_DESCRIPTIONS
+            if coordinator.has_component(description.component_id)
+        )
+    async_add_entities(entities)
 
 
 class FluidraComponentSwitch(FluidraPoolEntity, SwitchEntity):

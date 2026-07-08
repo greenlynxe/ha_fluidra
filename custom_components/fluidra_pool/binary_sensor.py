@@ -13,9 +13,9 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import COMPONENT_ACTIVE, COMPONENT_NO_FLOW, DOMAIN
+from .const import COMPONENT_ACTIVE, COMPONENT_NO_FLOW
 from .coordinator import FluidraPoolCoordinator
-from .entity import FluidraPoolEntity
+from .entity import FluidraPoolEntity, coordinators_from_entry
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -47,15 +47,15 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Fluidra binary sensors."""
-    coordinator: FluidraPoolCoordinator = hass.data[DOMAIN][entry.entry_id][
-        "coordinator"
-    ]
-    if not coordinator.is_heat_pump:
-        return
-    async_add_entities(
-        FluidraComponentBinarySensor(coordinator, description)
-        for description in BINARY_SENSOR_DESCRIPTIONS
-    )
+    entities: list[BinarySensorEntity] = []
+    for coordinator in coordinators_from_entry(hass, entry):
+        if not coordinator.is_heat_pump:
+            continue
+        entities.extend(
+            FluidraComponentBinarySensor(coordinator, description)
+            for description in BINARY_SENSOR_DESCRIPTIONS
+        )
+    async_add_entities(entities)
 
 
 class FluidraComponentBinarySensor(FluidraPoolEntity, BinarySensorEntity):

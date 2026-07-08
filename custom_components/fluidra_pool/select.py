@@ -9,13 +9,12 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
     COMPONENT_PUMP_SPEED,
-    DOMAIN,
     PUMP_SPEED_LEVEL_TO_OPTION,
     PUMP_SPEED_OPTION_TO_LEVEL,
     PUMP_SPEED_OPTIONS,
 )
 from .coordinator import FluidraPoolCoordinator
-from .entity import FluidraPoolEntity
+from .entity import FluidraPoolEntity, coordinators_from_entry
 
 
 async def async_setup_entry(
@@ -24,13 +23,11 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Fluidra select entities."""
-    coordinator: FluidraPoolCoordinator = hass.data[DOMAIN][entry.entry_id][
-        "coordinator"
-    ]
-    if not coordinator.is_pump or not coordinator.has_component(COMPONENT_PUMP_SPEED):
-        return
-
-    async_add_entities([FluidraPumpSpeedSelect(coordinator)])
+    async_add_entities(
+        FluidraPumpSpeedSelect(coordinator)
+        for coordinator in coordinators_from_entry(hass, entry)
+        if coordinator.is_pump and coordinator.has_component(COMPONENT_PUMP_SPEED)
+    )
 
 
 class FluidraPumpSpeedSelect(FluidraPoolEntity, SelectEntity):

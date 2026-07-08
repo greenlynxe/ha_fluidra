@@ -58,12 +58,11 @@ from .const import (
     COMPONENT_WATER_INLET_TEMP,
     COMPONENT_WATER_OUTLET_TEMP,
     COMPONENT_WATER_TEMP,
-    DOMAIN,
     MODE_LABELS,
     PUMP_SPEED_LEVEL_TO_OPTION,
 )
 from .coordinator import FluidraPoolCoordinator
-from .entity import FluidraPoolEntity
+from .entity import FluidraPoolEntity, coordinators_from_entry
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -281,47 +280,45 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Fluidra sensor entities."""
-    coordinator: FluidraPoolCoordinator = hass.data[DOMAIN][entry.entry_id][
-        "coordinator"
-    ]
     entities: list[SensorEntity] = []
 
-    if coordinator.is_heat_pump:
-        entities.extend(
-            FluidraComponentSensor(coordinator, description)
-            for description in HEAT_PUMP_SENSOR_DESCRIPTIONS
-        )
-        entities.extend(
-            [
-                FluidraModeSensor(
-                    coordinator,
-                    key="requested_mode",
-                    name="Requested mode",
-                    component_id=COMPONENT_MODE,
-                ),
-                FluidraModeSensor(
-                    coordinator,
-                    key="effective_mode",
-                    name="Effective mode",
-                    component_id=COMPONENT_EFFECTIVE_MODE,
-                ),
-                FluidraEfficiencySensor(coordinator),
-            ]
-        )
-    elif coordinator.is_pump:
-        has_speed_percent = coordinator.has_component(COMPONENT_PUMP_SPEED_PERCENT)
-        has_speed_level = coordinator.has_component(COMPONENT_PUMP_SPEED)
-        if has_speed_percent or has_speed_level:
-            entities.append(FluidraPumpSpeedPercentSensor(coordinator))
-        if has_speed_level:
-            entities.append(FluidraPumpSpeedLevelSensor(coordinator))
-        entities.extend(
-            FluidraPumpComponentStatusSensor(coordinator, description)
-            for description in PUMP_STATUS_SENSOR_DESCRIPTIONS
-            if coordinator.has_component(description.component_id)
-        )
+    for coordinator in coordinators_from_entry(hass, entry):
+        if coordinator.is_heat_pump:
+            entities.extend(
+                FluidraComponentSensor(coordinator, description)
+                for description in HEAT_PUMP_SENSOR_DESCRIPTIONS
+            )
+            entities.extend(
+                [
+                    FluidraModeSensor(
+                        coordinator,
+                        key="requested_mode",
+                        name="Requested mode",
+                        component_id=COMPONENT_MODE,
+                    ),
+                    FluidraModeSensor(
+                        coordinator,
+                        key="effective_mode",
+                        name="Effective mode",
+                        component_id=COMPONENT_EFFECTIVE_MODE,
+                    ),
+                    FluidraEfficiencySensor(coordinator),
+                ]
+            )
+        elif coordinator.is_pump:
+            has_speed_percent = coordinator.has_component(COMPONENT_PUMP_SPEED_PERCENT)
+            has_speed_level = coordinator.has_component(COMPONENT_PUMP_SPEED)
+            if has_speed_percent or has_speed_level:
+                entities.append(FluidraPumpSpeedPercentSensor(coordinator))
+            if has_speed_level:
+                entities.append(FluidraPumpSpeedLevelSensor(coordinator))
+            entities.extend(
+                FluidraPumpComponentStatusSensor(coordinator, description)
+                for description in PUMP_STATUS_SENSOR_DESCRIPTIONS
+                if coordinator.has_component(description.component_id)
+            )
 
-    entities.append(FluidraRawComponentsSensor(coordinator))
+        entities.append(FluidraRawComponentsSensor(coordinator))
     async_add_entities(entities)
 
 
