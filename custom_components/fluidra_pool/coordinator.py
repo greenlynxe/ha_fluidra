@@ -132,7 +132,7 @@ class FluidraPoolCoordinator(DataUpdateCoordinator[FluidraDeviceState]):
 
             components = await self.api.async_get_device_components(self.device_id)
             if not self._uiconfig:
-                self._uiconfig = await self.api.async_get_device_uiconfig(self.device_id)
+                self._uiconfig = await self._async_get_optional_uiconfig()
 
             info = detail.get("info")
             if not isinstance(info, dict):
@@ -163,6 +163,18 @@ class FluidraPoolCoordinator(DataUpdateCoordinator[FluidraDeviceState]):
             raise ConfigEntryAuthFailed(str(err)) from err
         except FluidraApiError as err:
             raise UpdateFailed(str(err)) from err
+
+    async def _async_get_optional_uiconfig(self) -> dict[str, Any]:
+        """Return UI config when the endpoint is available."""
+        try:
+            return await self.api.async_get_device_uiconfig(self.device_id)
+        except FluidraApiError as err:
+            _LOGGER.debug(
+                "Fluidra UI config unavailable for %s: %s",
+                self.device_id,
+                err,
+            )
+            return {}
 
     def _ensure_websocket_started(self) -> None:
         """Start the WebSocket listener once."""
