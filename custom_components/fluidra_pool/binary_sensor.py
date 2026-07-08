@@ -1,4 +1,4 @@
-"""Binary sensors for the Fluidra Z250iQ."""
+"""Binary sensors for Fluidra pool equipment."""
 
 from __future__ import annotations
 
@@ -14,8 +14,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import COMPONENT_ACTIVE, COMPONENT_NO_FLOW, DOMAIN
-from .coordinator import FluidraZ250IQCoordinator
-from .entity import FluidraZ250IQEntity
+from .coordinator import FluidraPoolCoordinator
+from .entity import FluidraPoolEntity
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -46,24 +46,26 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Z250iQ binary sensors."""
-    coordinator: FluidraZ250IQCoordinator = hass.data[DOMAIN][entry.entry_id][
+    """Set up Fluidra binary sensors."""
+    coordinator: FluidraPoolCoordinator = hass.data[DOMAIN][entry.entry_id][
         "coordinator"
     ]
+    if not coordinator.is_heat_pump:
+        return
     async_add_entities(
         FluidraComponentBinarySensor(coordinator, description)
         for description in BINARY_SENSOR_DESCRIPTIONS
     )
 
 
-class FluidraComponentBinarySensor(FluidraZ250IQEntity, BinarySensorEntity):
+class FluidraComponentBinarySensor(FluidraPoolEntity, BinarySensorEntity):
     """Binary sensor backed by a single component."""
 
     entity_description: FluidraBinarySensorDescription
 
     def __init__(
         self,
-        coordinator: FluidraZ250IQCoordinator,
+        coordinator: FluidraPoolCoordinator,
         description: FluidraBinarySensorDescription,
     ) -> None:
         super().__init__(coordinator, description.key)
@@ -77,4 +79,3 @@ class FluidraComponentBinarySensor(FluidraZ250IQEntity, BinarySensorEntity):
         if raw_value is None:
             return None
         return bool(raw_value)
-

@@ -1,10 +1,10 @@
 {
-  "title": "Fluidra Z250iQ",
+  "title": "Fluidra Pool",
   "config": {
     "step": {
       "user": {
         "title": "Connect to Fluidra",
-        "description": "Sign in with your Fluidra account to discover a Z250iQ heat pump.",
+        "description": "Sign in with your Fluidra account to discover supported pool equipment.",
         "data": {
           "username": "Email",
           "password": "Password"
@@ -12,19 +12,19 @@
       },
       "select_device": {
         "title": "Select device",
-        "description": "Choose the Z250iQ heat pump to import.",
+        "description": "Choose the Fluidra device to import.",
         "data": {
-          "device_id": "Heat pump"
+          "device_id": "Device"
         }
       }
     },
     "error": {
       "invalid_auth": "Invalid Fluidra credentials.",
       "cannot_connect": "Unable to reach the Fluidra API.",
-      "no_supported_device": "No compatible Z250iQ was found on this account."
+      "no_supported_device": "No supported Fluidra device was found on this account."
     },
     "abort": {
-      "already_configured": "This heat pump is already configured."
+      "already_configured": "This Fluidra device is already configured."
     }
   },
   "options": {

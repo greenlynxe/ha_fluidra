@@ -49,7 +49,7 @@ class FluidraAuth:
             "Authorization": f"Bearer {token}",
             "Accept": "application/json",
             "Content-Type": "application/json",
-            "User-Agent": "HomeAssistant/FluidraZ250iQ",
+            "User-Agent": "HomeAssistant/FluidraPool",
             "x-access-token": token,
             "x-api-key": token,
         }

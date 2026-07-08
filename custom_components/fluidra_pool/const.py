@@ -1,15 +1,16 @@
-"""Constants for the Fluidra Z250iQ integration."""
+"""Constants for the Fluidra pool equipment integration."""
 
 from __future__ import annotations
 
 from datetime import timedelta
 
-DOMAIN = "fluidra_z250iq"
+DOMAIN = "fluidra_pool"
 
 CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
 CONF_DEVICE_ID = "device_id"
 CONF_DEVICE_NAME = "device_name"
+CONF_DEVICE_PROFILE = "device_profile"
 CONF_SCAN_INTERVAL = "scan_interval"
 
 # The integration mostly relies on cloud push. Keep the REST fallback slow so
@@ -78,6 +79,24 @@ COMPONENT_EFFECTIVE_MODE = 80
 COMPONENT_SETPOINT_MIN = 81
 COMPONENT_SETPOINT_MAX = 82
 
+COMPONENT_PUMP_POWER = 9
+COMPONENT_PUMP_AUTO_MODE = 10
+COMPONENT_PUMP_SPEED = 11
+COMPONENT_PUMP_SPEED_PERCENT = 15
+COMPONENT_PUMP_SCHEDULE = 20
+COMPONENT_PUMP_NETWORK = 21
+
+PUMP_SPEED_LEVEL_TO_PERCENT = {
+    0: 45,
+    1: 65,
+    2: 100,
+}
+PUMP_SPEED_OPTIONS = ("Low", "Medium", "High")
+PUMP_SPEED_OPTION_TO_LEVEL = dict(zip(PUMP_SPEED_OPTIONS, (0, 1, 2), strict=True))
+PUMP_SPEED_LEVEL_TO_OPTION = {
+    level: option for option, level in PUMP_SPEED_OPTION_TO_LEVEL.items()
+}
+
 MODE_SMART_HEATING = 0
 MODE_SMART_COOLING = 1
 MODE_SMART_AUTO = 2
@@ -107,6 +126,3 @@ COOLING_MODE_VALUES = {
     MODE_BOOST_COOLING,
     MODE_SILENCE_COOLING,
 }
-
-SUPPORTED_MODEL_HINTS = ("z250iq",)
-SUPPORTED_SKUS = ("WH000589",)

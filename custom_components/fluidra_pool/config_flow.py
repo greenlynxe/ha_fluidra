@@ -1,4 +1,4 @@
-"""Config flow for Fluidra Z250iQ."""
+"""Config flow for Fluidra pool equipment."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from .auth import FluidraAuthenticationError
 from .const import (
     CONF_DEVICE_ID,
     CONF_DEVICE_NAME,
+    CONF_DEVICE_PROFILE,
     CONF_PASSWORD,
     CONF_SCAN_INTERVAL,
     CONF_USERNAME,
@@ -24,13 +25,14 @@ from .const import (
     MAX_SCAN_INTERVAL,
     MIN_SCAN_INTERVAL,
 )
+from .device_profile import identify_device_profile
 
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class FluidraZ250IQConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle configuration for Fluidra Z250iQ."""
+class FluidraPoolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Handle configuration for supported Fluidra devices."""
 
     VERSION = 1
 
@@ -41,7 +43,7 @@ class FluidraZ250IQConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Authenticate and discover Z250iQ devices."""
+        """Authenticate and discover supported devices."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -84,7 +86,7 @@ class FluidraZ250IQConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_select_device(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Select a device when multiple Z250iQ-like devices are found."""
+        """Select a device when multiple supported devices are found."""
         if self._user_input is None:
             return await self.async_step_user()
 
@@ -95,9 +97,7 @@ class FluidraZ250IQConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
             return await self._async_create_entry(self._user_input, selected)
 
-        options = {
-            str(device["id"]): device_display_name(device) for device in self._devices
-        }
+        options = {str(device["id"]): _device_option_label(device) for device in self._devices}
         return self.async_show_form(
             step_id="select_device",
             data_schema=vol.Schema(
@@ -110,15 +110,17 @@ class FluidraZ250IQConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Create the config entry for the selected device."""
         device_id = str(device["id"])
+        profile = identify_device_profile(device)
         await self.async_set_unique_id(device_id)
         self._abort_if_unique_id_configured()
         return self.async_create_entry(
-            title=device_display_name(device),
+            title=_device_option_label(device),
             data={
                 CONF_USERNAME: credentials[CONF_USERNAME],
                 CONF_PASSWORD: credentials[CONF_PASSWORD],
                 CONF_DEVICE_ID: device_id,
                 CONF_DEVICE_NAME: device_display_name(device),
+                CONF_DEVICE_PROFILE: profile.key if profile else None,
                 CONF_SCAN_INTERVAL: int(DEFAULT_SCAN_INTERVAL.total_seconds() / 60),
             },
         )
@@ -129,10 +131,10 @@ class FluidraZ250IQConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         config_entry: config_entries.ConfigEntry,
     ) -> config_entries.OptionsFlow:
         """Return the options flow."""
-        return FluidraZ250IQOptionsFlow(config_entry)
+        return FluidraPoolOptionsFlow(config_entry)
 
 
-class FluidraZ250IQOptionsFlow(config_entries.OptionsFlow):
+class FluidraPoolOptionsFlow(config_entries.OptionsFlow):
     """Manage integration options."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
@@ -170,3 +172,12 @@ class FluidraZ250IQOptionsFlow(config_entries.OptionsFlow):
                 }
             ),
         )
+
+
+def _device_option_label(device: dict[str, Any]) -> str:
+    """Return a readable selector label with the detected profile."""
+    name = device_display_name(device)
+    profile = identify_device_profile(device)
+    if profile is None:
+        return name
+    return f"{name} ({profile.model_name})"

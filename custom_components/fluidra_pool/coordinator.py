@@ -1,4 +1,4 @@
-"""Coordinator for the Fluidra Z250iQ integration."""
+"""Coordinator for supported Fluidra pool equipment."""
 
 from __future__ import annotations
 
@@ -16,28 +16,41 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import FluidraApiClient, FluidraApiError, device_display_name, is_supported_device
+from .api import FluidraApiClient, FluidraApiError, device_display_name
 from .auth import FluidraAuthenticationError
 from .const import (
     COMPONENT_EFFECTIVE_MODE,
     COMPONENT_MODE,
+    COMPONENT_PUMP_AUTO_MODE,
+    COMPONENT_PUMP_POWER,
+    COMPONENT_PUMP_SPEED,
+    COMPONENT_PUMP_SPEED_PERCENT,
     COMPONENT_POWER,
     COMPONENT_SETPOINT,
     COMPONENT_SETPOINT_MAX,
     COMPONENT_SETPOINT_MIN,
     CONF_DEVICE_ID,
     CONF_DEVICE_NAME,
+    CONF_DEVICE_PROFILE,
     CONF_SCAN_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     MAX_SCAN_INTERVAL,
     MIN_SCAN_INTERVAL,
     POST_WRITE_REFRESH_DELAY,
+    PUMP_SPEED_LEVEL_TO_PERCENT,
     WS_RECONNECT_BACKOFF_FACTOR,
     WS_RECONNECT_INITIAL_DELAY,
     WS_RECONNECT_MAX_DELAY,
     WS_RECONNECT_STABLE_SECONDS,
     WS_URL,
+)
+from .device_profile import (
+    DEVICE_TYPE_HEAT_PUMP,
+    DEVICE_TYPE_PUMP,
+    FluidraDeviceProfile,
+    identify_device_profile,
+    profile_from_key,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -45,8 +58,9 @@ _LOGGER = logging.getLogger(__name__)
 
 @dataclass(slots=True)
 class FluidraDeviceState:
-    """Current Z250iQ state cached by the coordinator."""
+    """Current Fluidra device state cached by the coordinator."""
 
+    profile: FluidraDeviceProfile
     device: dict[str, Any]
     detail: dict[str, Any]
     components: dict[int, dict[str, Any]]
@@ -56,8 +70,8 @@ class FluidraDeviceState:
     websocket_connected: bool = False
 
 
-class FluidraZ250IQCoordinator(DataUpdateCoordinator[FluidraDeviceState]):
-    """Coordinate API polling and WebSocket updates for one Z250iQ."""
+class FluidraPoolCoordinator(DataUpdateCoordinator[FluidraDeviceState]):
+    """Coordinate API polling and WebSocket updates for one Fluidra device."""
 
     def __init__(
         self,
@@ -89,6 +103,7 @@ class FluidraZ250IQCoordinator(DataUpdateCoordinator[FluidraDeviceState]):
         self.api = api
         self.device_id = entry.data[CONF_DEVICE_ID]
         self.device_name = entry.data.get(CONF_DEVICE_NAME, self.device_id)
+        self._stored_profile = profile_from_key(entry.data.get(CONF_DEVICE_PROFILE))
         self._uiconfig: dict[str, Any] = {}
         self._ws_task: asyncio.Task[None] | None = None
         self._ws_running = False
@@ -112,8 +127,9 @@ class FluidraZ250IQCoordinator(DataUpdateCoordinator[FluidraDeviceState]):
         """Fetch the latest device state from the cloud API."""
         try:
             detail = await self.api.async_get_device_detail(self.device_id)
-            if not is_supported_device(detail):
-                raise UpdateFailed("The configured device is not a supported Z250iQ")
+            profile = identify_device_profile(detail) or self._stored_profile
+            if profile is None:
+                raise UpdateFailed("The configured device is not supported")
 
             components = await self.api.async_get_device_components(self.device_id)
             if not self._uiconfig:
@@ -127,8 +143,11 @@ class FluidraZ250IQCoordinator(DataUpdateCoordinator[FluidraDeviceState]):
                 "serial_number": detail.get("sn") or detail.get("serialNumber"),
                 "firmware": detail.get("vr") or detail.get("currentFirmwareVersion"),
                 "sku": detail.get("sku"),
+                "profile": profile.key,
+                "device_type": profile.device_type,
             }
             state = FluidraDeviceState(
+                profile=profile,
                 device=device,
                 detail=detail,
                 components=components,
@@ -309,7 +328,27 @@ class FluidraZ250IQCoordinator(DataUpdateCoordinator[FluidraDeviceState]):
         component = self.data.components.get(component_id)
         if component is None:
             return default
-        return component.get("reportedValue", default)
+        return component.get("reportedValue", component.get("desiredValue", default))
+
+    @property
+    def is_heat_pump(self) -> bool:
+        """Return True when this entry represents a heat pump."""
+        return (
+            self.data is not None
+            and self.data.profile.device_type == DEVICE_TYPE_HEAT_PUMP
+        )
+
+    @property
+    def is_pump(self) -> bool:
+        """Return True when this entry represents a pump."""
+        return (
+            self.data is not None
+            and self.data.profile.device_type == DEVICE_TYPE_PUMP
+        )
+
+    def has_component(self, component_id: int) -> bool:
+        """Return True when the current payload includes a component."""
+        return self.data is not None and component_id in self.data.components
 
     def get_scaled_component_value(
         self, component_id: int, *, divisor: float = 10.0
@@ -351,6 +390,38 @@ class FluidraZ250IQCoordinator(DataUpdateCoordinator[FluidraDeviceState]):
         rounded = round(temperature_c)
         await self._async_set_component(COMPONENT_SETPOINT, int(rounded * 10))
 
+    def get_pump_speed_level(self) -> int | None:
+        """Return the pump speed level when available."""
+        raw_level = self.get_component_value(COMPONENT_PUMP_SPEED)
+        return raw_level if isinstance(raw_level, int) else None
+
+    def get_pump_speed_percent(self) -> int:
+        """Return the pump speed percent, deriving it from level if needed."""
+        if self.get_component_value(COMPONENT_PUMP_POWER, 0) == 0:
+            return 0
+
+        raw_percent = self.get_component_value(COMPONENT_PUMP_SPEED_PERCENT)
+        if isinstance(raw_percent, (int, float)):
+            return int(raw_percent)
+
+        speed_level = self.get_pump_speed_level()
+        if speed_level is None:
+            return 0
+        return PUMP_SPEED_LEVEL_TO_PERCENT.get(speed_level, 0)
+
+    async def async_set_pump_power(self, enabled: bool) -> None:
+        """Turn the pump on or off."""
+        await self._async_set_component(COMPONENT_PUMP_POWER, 1 if enabled else 0)
+
+    async def async_set_pump_auto_mode(self, enabled: bool) -> None:
+        """Turn the pump automatic mode on or off."""
+        await self._async_set_component(COMPONENT_PUMP_AUTO_MODE, 1 if enabled else 0)
+
+    async def async_set_pump_speed_level(self, speed_level: int) -> None:
+        """Set the pump speed level."""
+        await self._async_set_component(COMPONENT_PUMP_POWER, 1)
+        await self._async_set_component(COMPONENT_PUMP_SPEED, speed_level)
+
     async def _async_set_component(self, component_id: int, value: int | float) -> None:
         """Write a component, update cache optimistically and refresh."""
         response = await self.api.async_set_component_value(
@@ -376,6 +447,26 @@ class FluidraZ250IQCoordinator(DataUpdateCoordinator[FluidraDeviceState]):
             )
             effective["reportedValue"] = value
             components[COMPONENT_EFFECTIVE_MODE] = effective
+        elif component_id == COMPONENT_PUMP_POWER:
+            if value == 0 and COMPONENT_PUMP_SPEED_PERCENT in components:
+                speed_percent = dict(components[COMPONENT_PUMP_SPEED_PERCENT])
+                speed_percent["reportedValue"] = 0
+                components[COMPONENT_PUMP_SPEED_PERCENT] = speed_percent
+        elif component_id == COMPONENT_PUMP_SPEED:
+            try:
+                speed_level = int(value)
+            except (TypeError, ValueError):
+                speed_level = -1
+            speed_percent = dict(
+                components.get(
+                    COMPONENT_PUMP_SPEED_PERCENT,
+                    {"id": COMPONENT_PUMP_SPEED_PERCENT},
+                )
+            )
+            speed_percent["reportedValue"] = PUMP_SPEED_LEVEL_TO_PERCENT.get(
+                speed_level, 0
+            )
+            components[COMPONENT_PUMP_SPEED_PERCENT] = speed_percent
 
         self.async_set_updated_data(
             replace(

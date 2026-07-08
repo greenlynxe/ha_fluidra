@@ -1,31 +1,50 @@
-# Fluidra Z250iQ Home Assistant Integration
+# Fluidra Pool Home Assistant Integration
 
-Integration Home Assistant minimale et propre, dediee a la pompe a chaleur Fluidra `Z250iQ`.
+Integration Home Assistant pour equipements piscine Fluidra connectes via le cloud Fluidra.
 
 ## Objectif
 
-Ce depot repart de zero avec un scope volontairement serre :
+Ce depot garde une architecture volontairement lisible et prudente :
 
-- un seul type d'appareil cible : `Z250iQ`
+- domaine Home Assistant : `fluidra_pool`
 - API cloud Fluidra uniquement
-- commandes confirmees : `power`, `mode`, `consigne`
-- remontees temps reel via WebSocket cloud
-- capteurs centres sur ce qu'on a valide en live
+- mises a jour temps reel via WebSocket cloud
+- polling REST lent en filet de securite
+- profils d'appareils explicites pour eviter de melanger les composants entre PAC et pompe
 
-## Etat actuel
+## Appareils pris en charge
 
-La version courante privilegie les mises a jour WebSocket et limite le polling REST a un filet de securite plus lent, configurable de 5 a 120 minutes avec une valeur par defaut a 15 minutes.
+La version courante gere :
 
-La premiere version expose :
+- pompe a chaleur `Z250iQ`
+- pompe a vitesse variable `Victoria Smart Connect VS` / `VS200`
 
-- un `climate` pour piloter la PAC
-- des `sensor` pour les temperatures et quelques metriques utiles
-- des `binary_sensor` pour l'etat de marche et l'alarme `No Flow`
-- un `config flow` avec auto-decouverte de la `Z250iQ` sur le compte Fluidra
+## Entites
+
+Pour la `Z250iQ`, l'integration expose :
+
+- un `climate` pour marche/arret, mode, consigne et temperature d'eau
+- des `sensor` pour temperatures et metriques utiles
+- des `binary_sensor` pour marche et alarme `No Flow`
+- un capteur diagnostic `Raw components`
+
+Pour la pompe `Victoria Smart Connect VS` / `VS200`, l'integration expose :
+
+- un `switch` marche/arret
+- un `switch` mode automatique
+- un `select` de vitesse quand le composant de vitesse est disponible
+- des `sensor` de vitesse et diagnostics
+- un capteur diagnostic `Raw components`
+
+## Polling et API
+
+L'integration privilegie les push WebSocket et limite le polling REST a un intervalle configurable de 5 a 120 minutes, avec une valeur par defaut a 15 minutes.
+
+Les ecritures n'enchainent plus de refresh immediat agressif. Une mise a jour locale optimiste est appliquee, puis un refresh differe permet de recuperer la valeur confirmee par le cloud.
 
 ## Cartographie retenue
 
-Composants confirmes :
+Composants PAC confirmes :
 
 - `13` : marche / arret
 - `14` : mode demande
@@ -36,23 +55,21 @@ Composants confirmes :
 - `80` : mode effectif
 - `81` / `82` : bornes min / max de consigne selon le mode
 
-Composants exposes comme diagnostics ou metriques estimees :
+Composants pompe VS :
 
-- `68` / `69` : temperatures eau entree / sortie
-- `65` : temperature cote chaud
-- `66` / `70` : temperatures cote froid
-- `74` : tension alimentation
-- `64` : puissance machine probable
-- `77` : courant probable
+- `9` : marche / arret
+- `10` : mode automatique
+- `11` : niveau de vitesse
+- `15` : vitesse en pourcentage
+- `20` : programmation
+- `21` : information reseau
 
 ## Structure
 
-Le code de l'integration est dans `custom_components/fluidra_z250iq`.
+Le code de l'integration est dans `custom_components/fluidra_pool`.
 
 ## Remerciements
 
-Merci au travail initial realise sur le projet `ha-fluidra-pool`, qui nous a servi de base de recherche et de point de depart technique pour cette integration centree sur la `Z250iQ`.
+Merci au projet `foXaCe/Fluidra-pool`, qui a servi de reference pour comprendre la prise en charge des pompes Fluidra et comparer les composants exposes.
 
-Mention speciale a son auteur, `@roagert`, pour le travail deja effectue autour de l'API Fluidra.
-
-Depot d'origine : `https://github.com/Roagert/ha-fluidra-pool`
+Depot de reference : `https://github.com/foXaCe/Fluidra-pool`

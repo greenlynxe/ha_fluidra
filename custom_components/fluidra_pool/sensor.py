@@ -1,4 +1,4 @@
-"""Sensor entities for the Fluidra Z250iQ."""
+"""Sensor entities for Fluidra pool equipment."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     EntityCategory,
+    PERCENTAGE,
     UnitOfElectricCurrent,
     UnitOfElectricPotential,
     UnitOfPower,
@@ -43,6 +44,12 @@ from .const import (
     COMPONENT_MACHINE_METRIC_76,
     COMPONENT_MACHINE_POWER,
     COMPONENT_MODE,
+    COMPONENT_PUMP_AUTO_MODE,
+    COMPONENT_PUMP_NETWORK,
+    COMPONENT_PUMP_POWER,
+    COMPONENT_PUMP_SCHEDULE,
+    COMPONENT_PUMP_SPEED,
+    COMPONENT_PUMP_SPEED_PERCENT,
     COMPONENT_RUNNING_HOURS,
     COMPONENT_SUPPLY_VOLTAGE,
     COMPONENT_SETPOINT_MAX,
@@ -53,9 +60,10 @@ from .const import (
     COMPONENT_WATER_TEMP,
     DOMAIN,
     MODE_LABELS,
+    PUMP_SPEED_LEVEL_TO_OPTION,
 )
-from .coordinator import FluidraZ250IQCoordinator
-from .entity import FluidraZ250IQEntity
+from .coordinator import FluidraPoolCoordinator
+from .entity import FluidraPoolEntity
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -66,7 +74,7 @@ class FluidraSensorDescription(SensorEntityDescription):
     divisor: float = 1.0
 
 
-SENSOR_DESCRIPTIONS: tuple[FluidraSensorDescription, ...] = (
+HEAT_PUMP_SENSOR_DESCRIPTIONS: tuple[FluidraSensorDescription, ...] = (
     FluidraSensorDescription(
         key="water_temperature",
         name="Water temperature",
@@ -272,43 +280,87 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Z250iQ sensors."""
-    coordinator: FluidraZ250IQCoordinator = hass.data[DOMAIN][entry.entry_id][
+    """Set up Fluidra sensor entities."""
+    coordinator: FluidraPoolCoordinator = hass.data[DOMAIN][entry.entry_id][
         "coordinator"
     ]
-    entities: list[SensorEntity] = [
-        FluidraComponentSensor(coordinator, description)
-        for description in SENSOR_DESCRIPTIONS
-    ]
-    entities.extend(
-        [
-            FluidraModeSensor(
-                coordinator,
-                key="requested_mode",
-                name="Requested mode",
-                component_id=COMPONENT_MODE,
-            ),
-            FluidraModeSensor(
-                coordinator,
-                key="effective_mode",
-                name="Effective mode",
-                component_id=COMPONENT_EFFECTIVE_MODE,
-            ),
-            FluidraEfficiencySensor(coordinator),
-            FluidraRawComponentsSensor(coordinator),
-        ]
-    )
+    entities: list[SensorEntity] = []
+
+    if coordinator.is_heat_pump:
+        entities.extend(
+            FluidraComponentSensor(coordinator, description)
+            for description in HEAT_PUMP_SENSOR_DESCRIPTIONS
+        )
+        entities.extend(
+            [
+                FluidraModeSensor(
+                    coordinator,
+                    key="requested_mode",
+                    name="Requested mode",
+                    component_id=COMPONENT_MODE,
+                ),
+                FluidraModeSensor(
+                    coordinator,
+                    key="effective_mode",
+                    name="Effective mode",
+                    component_id=COMPONENT_EFFECTIVE_MODE,
+                ),
+                FluidraEfficiencySensor(coordinator),
+            ]
+        )
+    elif coordinator.is_pump:
+        has_speed_percent = coordinator.has_component(COMPONENT_PUMP_SPEED_PERCENT)
+        has_speed_level = coordinator.has_component(COMPONENT_PUMP_SPEED)
+        if has_speed_percent or has_speed_level:
+            entities.append(FluidraPumpSpeedPercentSensor(coordinator))
+        if has_speed_level:
+            entities.append(FluidraPumpSpeedLevelSensor(coordinator))
+        entities.extend(
+            FluidraPumpComponentStatusSensor(coordinator, description)
+            for description in PUMP_STATUS_SENSOR_DESCRIPTIONS
+            if coordinator.has_component(description.component_id)
+        )
+
+    entities.append(FluidraRawComponentsSensor(coordinator))
     async_add_entities(entities)
 
 
-class FluidraComponentSensor(FluidraZ250IQEntity, SensorEntity):
+PUMP_STATUS_SENSOR_DESCRIPTIONS: tuple[FluidraSensorDescription, ...] = (
+    FluidraSensorDescription(
+        key="pump_power_value",
+        name="Pump power value",
+        component_id=COMPONENT_PUMP_POWER,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    FluidraSensorDescription(
+        key="pump_auto_mode_value",
+        name="Auto mode value",
+        component_id=COMPONENT_PUMP_AUTO_MODE,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    FluidraSensorDescription(
+        key="pump_schedule_value",
+        name="Schedule value",
+        component_id=COMPONENT_PUMP_SCHEDULE,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    FluidraSensorDescription(
+        key="pump_network_value",
+        name="Network value",
+        component_id=COMPONENT_PUMP_NETWORK,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+)
+
+
+class FluidraComponentSensor(FluidraPoolEntity, SensorEntity):
     """Sensor backed by a single Fluidra component."""
 
     entity_description: FluidraSensorDescription
 
     def __init__(
         self,
-        coordinator: FluidraZ250IQCoordinator,
+        coordinator: FluidraPoolCoordinator,
         description: FluidraSensorDescription,
     ) -> None:
         super().__init__(coordinator, description.key)
@@ -332,14 +384,14 @@ class FluidraComponentSensor(FluidraZ250IQEntity, SensorEntity):
         return None
 
 
-class FluidraModeSensor(FluidraZ250IQEntity, SensorEntity):
+class FluidraModeSensor(FluidraPoolEntity, SensorEntity):
     """Text sensor describing a requested or effective mode."""
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(
         self,
-        coordinator: FluidraZ250IQCoordinator,
+        coordinator: FluidraPoolCoordinator,
         *,
         key: str,
         name: str,
@@ -366,15 +418,92 @@ class FluidraModeSensor(FluidraZ250IQEntity, SensorEntity):
         return {"mode_code": raw_value}
 
 
-class FluidraEfficiencySensor(FluidraZ250IQEntity, SensorEntity):
+class FluidraPumpSpeedPercentSensor(FluidraPoolEntity, SensorEntity):
+    """Sensor exposing the pump speed percentage."""
+
+    _attr_name = "Speed percent"
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator: FluidraPoolCoordinator) -> None:
+        super().__init__(coordinator, "pump_speed_percent")
+
+    @property
+    def native_value(self) -> int:
+        """Return the pump speed percentage."""
+        return self.coordinator.get_pump_speed_percent()
+
+
+class FluidraPumpSpeedLevelSensor(FluidraPoolEntity, SensorEntity):
+    """Diagnostic sensor exposing the raw pump speed level."""
+
+    _attr_name = "Speed level"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator: FluidraPoolCoordinator) -> None:
+        super().__init__(coordinator, "pump_speed_level")
+
+    @property
+    def native_value(self) -> int | None:
+        """Return the raw pump speed level."""
+        return self.coordinator.get_pump_speed_level()
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str] | None:
+        """Expose the level label used by the select entity."""
+        speed_level = self.coordinator.get_pump_speed_level()
+        if speed_level is None:
+            return None
+        option = PUMP_SPEED_LEVEL_TO_OPTION.get(speed_level)
+        if option is None:
+            return None
+        return {"option": option}
+
+
+class FluidraPumpComponentStatusSensor(FluidraPoolEntity, SensorEntity):
+    """Diagnostic sensor exposing a raw pump component value."""
+
+    entity_description: FluidraSensorDescription
+
+    def __init__(
+        self,
+        coordinator: FluidraPoolCoordinator,
+        description: FluidraSensorDescription,
+    ) -> None:
+        super().__init__(coordinator, description.key)
+        self.entity_description = description
+        self._attr_name = description.name
+
+    @property
+    def native_value(self) -> str | int | float | None:
+        """Return a compact state for the raw component."""
+        raw_value = self.component_value(self.entity_description.component_id)
+        if raw_value is None:
+            return None
+        if isinstance(raw_value, bool):
+            return int(raw_value)
+        if isinstance(raw_value, (int, float, str)):
+            return raw_value
+        return "available"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object] | None:
+        """Expose the raw component value when it is structured."""
+        raw_value = self.component_value(self.entity_description.component_id)
+        if raw_value is None or isinstance(raw_value, (bool, int, float, str)):
+            return None
+        return {"raw_value": raw_value}
+
+
+class FluidraEfficiencySensor(FluidraPoolEntity, SensorEntity):
     """Derived efficiency proxy based on absorbed power and water delta."""
 
     _attr_name = "Efficience"
-    _attr_native_unit_of_measurement = "W/°C"
+    _attr_native_unit_of_measurement = "W/degC"
     _attr_suggested_display_precision = 1
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
-    def __init__(self, coordinator: FluidraZ250IQCoordinator) -> None:
+    def __init__(self, coordinator: FluidraPoolCoordinator) -> None:
         super().__init__(coordinator, "efficiency_ratio")
 
     @property
@@ -420,13 +549,13 @@ class FluidraEfficiencySensor(FluidraZ250IQEntity, SensorEntity):
         return float(power), inlet_temp, outlet_temp
 
 
-class FluidraRawComponentsSensor(FluidraZ250IQEntity, SensorEntity):
+class FluidraRawComponentsSensor(FluidraPoolEntity, SensorEntity):
     """Diagnostic sensor exposing the raw component table."""
 
     _attr_name = "Raw components"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
-    def __init__(self, coordinator: FluidraZ250IQCoordinator) -> None:
+    def __init__(self, coordinator: FluidraPoolCoordinator) -> None:
         super().__init__(coordinator, "raw_components")
 
     @property

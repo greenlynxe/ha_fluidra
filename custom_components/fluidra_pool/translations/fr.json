@@ -1,10 +1,10 @@
 {
-  "title": "Fluidra Z250iQ",
+  "title": "Fluidra Pool",
   "config": {
     "step": {
       "user": {
         "title": "Connexion a Fluidra",
-        "description": "Connectez-vous avec votre compte Fluidra pour detecter une pompe a chaleur Z250iQ.",
+        "description": "Connectez-vous avec votre compte Fluidra pour detecter les equipements piscine pris en charge.",
         "data": {
           "username": "Email",
           "password": "Mot de passe"
@@ -12,19 +12,19 @@
       },
       "select_device": {
         "title": "Choix de l'appareil",
-        "description": "Choisissez la Z250iQ a importer.",
+        "description": "Choisissez l'equipement Fluidra a importer.",
         "data": {
-          "device_id": "Pompe a chaleur"
+          "device_id": "Equipement"
         }
       }
     },
     "error": {
       "invalid_auth": "Identifiants Fluidra invalides.",
       "cannot_connect": "Impossible de joindre l'API Fluidra.",
-      "no_supported_device": "Aucune Z250iQ compatible n'a ete trouvee sur ce compte."
+      "no_supported_device": "Aucun equipement Fluidra pris en charge n'a ete trouve sur ce compte."
     },
     "abort": {
-      "already_configured": "Cette pompe a chaleur est deja configuree."
+      "already_configured": "Cet equipement Fluidra est deja configure."
     }
   },
   "options": {

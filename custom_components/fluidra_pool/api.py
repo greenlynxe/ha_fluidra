@@ -1,4 +1,4 @@
-"""Fluidra cloud API client for Z250iQ heat pumps."""
+"""Fluidra cloud API client for supported Fluidra pool equipment."""
 
 from __future__ import annotations
 
@@ -17,9 +17,8 @@ from .const import (
     API_ENDPOINT_DEVICE_UICONFIG,
     API_ENDPOINT_DEVICES,
     API_ENDPOINT_SET_COMPONENT,
-    SUPPORTED_MODEL_HINTS,
-    SUPPORTED_SKUS,
 )
+from .device_profile import is_supported_device
 
 
 class FluidraApiError(Exception):
@@ -27,7 +26,7 @@ class FluidraApiError(Exception):
 
 
 class FluidraApiClient:
-    """Minimal Fluidra cloud client focused on Z250iQ devices."""
+    """Minimal Fluidra cloud client focused on supported devices."""
 
     def __init__(self, session: ClientSession, username: str, password: str) -> None:
         self._session = session
@@ -40,7 +39,7 @@ class FluidraApiClient:
         return await self._auth.async_get_access_token(force=force)
 
     async def async_get_supported_devices(self) -> list[dict[str, Any]]:
-        """Return only supported Z250iQ-like devices."""
+        """Return only supported Fluidra devices."""
         devices = await self.async_get_devices()
         return [device for device in devices if is_supported_device(device)]
 
@@ -163,22 +162,14 @@ class FluidraApiClient:
             raise FluidraApiError(f"Error while calling Fluidra API: {url}") from err
 
 
-def is_supported_device(device: Mapping[str, Any]) -> bool:
-    """Return True for devices that look like a Z250iQ."""
-    info = device.get("info", {})
-    name = str(device.get("name") or info.get("name") or "").lower()
-    family = str(info.get("family") or "").lower()
-    thing_type = str(device.get("thingType") or "").lower()
-    sku = str(device.get("sku") or "").upper()
-
-    if sku in SUPPORTED_SKUS:
-        return True
-
-    haystack = " ".join((name, family, thing_type))
-    return any(hint in haystack for hint in SUPPORTED_MODEL_HINTS)
-
-
 def device_display_name(device: Mapping[str, Any]) -> str:
     """Return the best display name for a device."""
     info = device.get("info", {})
-    return str(device.get("name") or info.get("name") or device.get("id") or "Z250iQ")
+    if not isinstance(info, Mapping):
+        info = {}
+    return str(
+        device.get("name")
+        or info.get("name")
+        or device.get("id")
+        or "Fluidra device"
+    )

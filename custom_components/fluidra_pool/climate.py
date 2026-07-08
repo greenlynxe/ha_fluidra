@@ -1,4 +1,4 @@
-"""Climate entity for the Fluidra Z250iQ."""
+"""Climate entities for Fluidra heat pumps."""
 
 from __future__ import annotations
 
@@ -23,8 +23,8 @@ from .const import (
     MODE_SMART_HEATING,
     PRESET_TO_MODE,
 )
-from .coordinator import FluidraZ250IQCoordinator
-from .entity import FluidraZ250IQEntity
+from .coordinator import FluidraPoolCoordinator
+from .entity import FluidraPoolEntity
 
 
 async def async_setup_entry(
@@ -32,15 +32,17 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up the Z250iQ climate entity."""
-    coordinator: FluidraZ250IQCoordinator = hass.data[DOMAIN][entry.entry_id][
+    """Set up Fluidra climate entities."""
+    coordinator: FluidraPoolCoordinator = hass.data[DOMAIN][entry.entry_id][
         "coordinator"
     ]
-    async_add_entities([FluidraZ250IQClimate(coordinator)])
+    if not coordinator.is_heat_pump:
+        return
+    async_add_entities([FluidraHeatPumpClimate(coordinator)])
 
 
-class FluidraZ250IQClimate(FluidraZ250IQEntity, ClimateEntity):
-    """Represent the Z250iQ as a Home Assistant climate entity."""
+class FluidraHeatPumpClimate(FluidraPoolEntity, ClimateEntity):
+    """Represent a Fluidra heat pump as a Home Assistant climate entity."""
 
     _attr_name = None
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
@@ -59,7 +61,7 @@ class FluidraZ250IQClimate(FluidraZ250IQEntity, ClimateEntity):
     ]
     _attr_preset_modes = list(PRESET_TO_MODE.keys())
 
-    def __init__(self, coordinator: FluidraZ250IQCoordinator) -> None:
+    def __init__(self, coordinator: FluidraPoolCoordinator) -> None:
         super().__init__(coordinator, "climate")
 
     @property
@@ -84,7 +86,7 @@ class FluidraZ250IQClimate(FluidraZ250IQEntity, ClimateEntity):
 
     @property
     def hvac_mode(self) -> HVACMode:
-        """Map the Z250iQ state to a Home Assistant HVAC mode."""
+        """Map the heat pump state to a Home Assistant HVAC mode."""
         power = self.component_value(COMPONENT_POWER, 0)
         if power == 0:
             return HVACMode.OFF
@@ -122,7 +124,7 @@ class FluidraZ250IQClimate(FluidraZ250IQEntity, ClimateEntity):
 
     @property
     def preset_mode(self) -> str | None:
-        """Return the current Z250iQ preset/mode label."""
+        """Return the current heat pump preset/mode label."""
         mode = self.coordinator.get_effective_mode()
         return MODE_LABELS.get(mode)
 
@@ -159,4 +161,3 @@ class FluidraZ250IQClimate(FluidraZ250IQEntity, ClimateEntity):
     async def async_turn_off(self) -> None:
         """Turn the heat pump off."""
         await self.coordinator.async_set_power(False)
-

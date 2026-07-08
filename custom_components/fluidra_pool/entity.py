@@ -1,4 +1,4 @@
-"""Shared entity helpers for Fluidra Z250iQ entities."""
+"""Shared entity helpers for Fluidra entities."""
 
 from __future__ import annotations
 
@@ -8,15 +8,15 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
-from .coordinator import FluidraZ250IQCoordinator
+from .coordinator import FluidraPoolCoordinator
 
 
-class FluidraZ250IQEntity(CoordinatorEntity[FluidraZ250IQCoordinator]):
+class FluidraPoolEntity(CoordinatorEntity[FluidraPoolCoordinator]):
     """Common base entity for the integration."""
 
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator: FluidraZ250IQCoordinator, unique_suffix: str) -> None:
+    def __init__(self, coordinator: FluidraPoolCoordinator, unique_suffix: str) -> None:
         super().__init__(coordinator)
         self._attr_unique_id = f"{coordinator.device_id}_{unique_suffix}"
 
@@ -27,12 +27,12 @@ class FluidraZ250IQEntity(CoordinatorEntity[FluidraZ250IQCoordinator]):
 
     @property
     def device_info(self) -> DeviceInfo:
-        """Describe the physical heat pump."""
+        """Describe the physical Fluidra device."""
         device = self.coordinator.data.device if self.coordinator.data else {}
         return DeviceInfo(
             identifiers={(DOMAIN, self.coordinator.device_id)},
             manufacturer="Fluidra",
-            model=device.get("model") or "Z250iQ",
+            model=device.get("model") or "Fluidra device",
             name=device.get("name") or self.coordinator.device_name,
             serial_number=device.get("serial_number"),
             sw_version=device.get("firmware"),
